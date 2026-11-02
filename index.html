@@ -652,7 +652,7 @@
     </div>
   </section>
 
-  <!-- 3 KPI CARDS -->
+  <!-- 4 KPI CARDS -->
   <section class="kpi-grid">
     <div class="kpi-card">
       <div class="label">剩余工时</div>
@@ -668,6 +668,11 @@
       <div class="label">月底预估</div>
       <div class="value" id="kpi-month">—</div>
       <div class="delta" id="kpi-month-d">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label" id="kpi-prev-label">上月累计</div>
+      <div class="value" id="kpi-prev">—</div>
+      <div class="delta" id="kpi-prev-d">—</div>
     </div>
   </section>
 
@@ -833,6 +838,34 @@ const lastDate = DATA[DATA.length - 1];
   document.getElementById('kpi-month').textContent = fmtHMShort(projectedRemMin);
   document.getElementById('kpi-month-d').textContent =
     `${workdaysLeft} 工作日剩余 · 日均 ${fmtMins(Math.round(avgNet))}`;
+
+  // KPI 4: 上月累计扣减 — 自动取最近一个"有数据但已结束"的自然月
+  (function renderPrevMonth(){
+    const byMonth = {};
+    DATA.forEach(d => {
+      const ym = d.full_date.slice(0, 7);           // '2026-10'
+      (byMonth[ym] = byMonth[ym] || []).push(d);
+    });
+    const now = new Date();
+    const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const months = Object.keys(byMonth).sort();
+    // 上月 = 当前月之前最近的有数据月份
+    const prev = [...months].reverse().find(ym => ym < curYM);
+    if (!prev) return;
+    const rows = byMonth[prev];
+    const sum = k => rows.reduce((a, d) => a + (d[k] || 0), 0);
+    const net = sum('net');
+    const late = sum('late'), early = sum('early'), ot = sum('ot');
+    const fullLeave = rows.filter(d => d.leave === '全天请假').reduce((a, d) => a + d.net, 0);
+    const hm = m => `${Math.abs(m) >= 60 ? Math.round(Math.abs(m) / 60 * 10) / 10 + 'h' : Math.abs(m) + '分'}`;
+    const ymCN = `${parseInt(prev.slice(5), 10)}月`;
+    document.getElementById('kpi-prev-label').textContent = `${ymCN}累计`;
+    const el = document.getElementById('kpi-prev');
+    el.textContent = (net >= 0 ? '+' : '-') + hm(net) + (net >= 0 ? ' 加班' : ' 扣减');
+    el.style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('kpi-prev-d').innerHTML =
+      `迟到${hm(-late)} · 早走${hm(-early)} · 加班+${hm(ot)}${fullLeave ? ` · 全天假${hm(fullLeave)}` : ''}`;
+  })();
 })();
 
 // ---------- TREND CHART (ECharts) ----------
